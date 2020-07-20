@@ -1,0 +1,92 @@
+---
+title: "Estimando o Pico do Covid na Paraíba"
+output:
+  html_notebook: default
+---
+
+Importando os dados da secretaria de saúde da Paraíba
+```{r}
+url  <- "https://superset.plataformatarget.com.br/superset/explore_json/?form_data=%7B%22slice_id%22%3A1550%7D&csv=true"
+full_data <- read.csv(url, header = T, sep = ";")
+```
+
+Explorando os dados
+```{r}
+dim(full_data)
+str(full_data)
+```
+Tratando os dados
+```{r}
+work <- full_data[order(full_data$data),]
+work <- subset(work, casosNovos > 0)
+head(work)
+```
+
+Criando um vetor com o número de dias da pandêmia na *Paraíba*
+```{r}
+day <- 1:length(work$casosNovos)
+day
+```
+
+---
+Gráfico de Novos Casos
+```{r}
+plot(day, work$casosNovos)
+```
+
+Gráfico de Total de casos
+```{r}
+plot(day, work$casosAcumulados)
+```
+
+
+### Modelagem
+Criando um *DataFrame* dos dias e do _log_ do total de casos. Modelamos uma regressão linear com esses dados
+```{r}
+total_cases_log <- log(work$casosAcumulados)
+df_exp <- data.frame(day, total_cases_log)
+fm_exp <- lm(total_cases_log ~ day, data = df_exp)
+
+plot(df_exp$day, df_exp$total_cases_log)
+lines(df_exp$day, fm_exp$fitted.values)
+```
+
+Fazendo um novo modelo buscando ajustá-lo a sensibilidade dos dados
+
+```{r}
+day_sq <- day * day
+df_exp2 <- data.frame(day, day_sq, total_cases_log)
+fm_exp2 <- lm(total_cases_log ~ day + day_sq, data = df_exp2)
+
+plot(df_exp2$day, df_exp2$total_cases_log)
+lines(df_exp2$day, fm_exp2$fitted.values)
+
+```
+Usando o total de casos na plotagem ao inves do log
+```{r}
+fitted_values_exp2 <- exp(fm_exp2$fitted.values)
+
+plot(day, work$casosAcumulados)
+lines(day, fitted_values_exp2)
+```
+Fazendo a correlação das duas
+```{r}
+cor(work$casosAcumulados, fitted_values_exp2)
+```
+_Temos uma correlação forte e positiva_
+
+Buscando o pico da curva
+```{r}
+peak <- -fm_exp2$coefficients["day"] / (2 * fm_exp2$coefficients["day_sq"])
+peak
+
+peak <- ceiling(peak)
+peak
+
+work$data[peak]
+```
+
+
+
+
+
